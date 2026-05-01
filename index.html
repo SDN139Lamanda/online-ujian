@@ -1,17 +1,22 @@
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ExamShield — Sistem Ujian Online</title>
-    
+
     <!-- Fonts & Library -->
     <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    
+
+    <!-- Firebase Config (Memuat konfigurasi DB & Auth) -->
+    <script type="module" src="./firebase-config.js"></script>
+
     <!-- CSS Terpisah -->
     <link rel="stylesheet" href="css/style.css">
 </head>
+
 <body>
 
     <!-- ===== TOAST CONTAINER ===== -->
@@ -300,8 +305,10 @@
             </div>
         </div>
     </div>
-<!-- JS Terpisah (ES Module) -->
-<script type="module" src="js/app.js"></script>
-   
+
+    <!-- Scripts: Memuat Logika Modular -->
+    <!-- App.js akan mengikat semua fungsi (doLogin, saveGuru, dll) ke window -->
+    <script type="module" src="./app.js"></script>
 </body>
+
 </html>
