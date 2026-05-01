@@ -194,4 +194,82 @@ export const DataAdapter = {
   }
 };
 
+// ── UJIAN ──
+async getUjian(guruId = null) {
+    if (this.useFirebase) {
+        let data = await FirebaseService.get('ujian');
+        let list = [];
+        if (data && typeof data === 'object') {
+            list = Object.values(data);
+        }
+        if (guruId) list = list.filter(u => u.guruId === guruId);
+        return list;
+    }
+    let list = DB.ujian;
+    if (guruId) list = list.filter(u => u.guruId === guruId);
+    return list;
+},
+
+async saveUjian(ujianData) {
+    const dataToSave = { ...ujianData, updatedAt: Date.now() };
+    if (this.useFirebase) {
+        const id = ujianData.id || FirebaseService.generateId();
+        return await FirebaseService.set(`ujian/${id}`, { ...dataToSave, id });
+    }
+    if (!ujianData.id) ujianData.id = 'UJ' + Date.now();
+    DB.ujian.push(dataToSave);
+    return true;
+},
+
+async updateUjianStatus(ujianId, status) {
+    if (this.useFirebase) {
+        return await FirebaseService.update(`ujian/${ujianId}`, { 
+            status, 
+            updatedAt: Date.now() 
+        });
+    }
+    const u = DB.ujian.find(u => u.id === ujianId);
+    if (u) u.status = status;
+    return true;
+},
+
+async deleteUjian(ujianId) {
+    if (this.useFirebase) {
+        return await FirebaseService.remove(`ujian/${ujianId}`);
+    }
+    const idx = DB.ujian.findIndex(u => u.id === ujianId);
+    if (idx !== -1) DB.ujian.splice(idx, 1);
+    return true;
+},
+
+// ── HASIL UJIAN ──
+async saveHasil(hasilData) {
+    const dataToSave = { 
+        ...hasilData, 
+        timestamp: FirebaseService.timestamp(),
+        updatedAt: Date.now()
+    };
+    if (this.useFirebase) {
+        const id = hasilData.id || FirebaseService.generateId();
+        return await FirebaseService.set(`hasil/${id}`, { ...dataToSave, id });
+    }
+    if (!hasilData.id) hasilData.id = 'H' + Date.now();
+    DB.hasil.push(dataToSave);
+    return true;
+},
+
+async getHasilByUjian(ujianId = null) {
+    if (this.useFirebase) {
+        let data = await FirebaseService.get('hasil');
+        let list = [];
+        if (data && typeof data === 'object') {
+            list = Object.values(data);
+        }
+        if (ujianId) list = list.filter(h => h.ujianId === ujianId);
+        return list;
+    }
+    let list = DB.hasil;
+    if (ujianId) list = list.filter(h => h.ujianId === ujianId);
+    return list;
+},
 export default DataAdapter;
