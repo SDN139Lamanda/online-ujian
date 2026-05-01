@@ -1,13 +1,19 @@
+// js/modules/users.js
+// ⚡ CRUD Guru & Siswa — Terintegrasi Firebase via DataAdapter
+
 import { DB } from '../core/db.js';
 import { session } from '../core/state.js';
+import { DataAdapter } from '../services/dataAdapter.js'; // ← Adapter untuk Firebase
 import { showToast } from '../utils/toast.js';
 import { closeModal } from '../utils/modal.js';
 import { getKelasOptions, generatePassword } from '../utils/helpers.js';
 
 // ⚡ Diambil dari Word: CRUD GURU & SISWA
+
 export function syncGuruUsername() {
-    const nip = document.getElementById('guru-nip').value.trim();
-    document.getElementById('guru-username').value = nip;
+    const nip = document.getElementById('guru-nip')?.value.trim() || '';
+    const usernameEl = document.getElementById('guru-username');
+    if (usernameEl) usernameEl.value = nip;
 }
 
 export function syncSiswaFromNISN() {
@@ -18,54 +24,93 @@ export function syncSiswaFromNISN() {
     if (passwordEl) passwordEl.value = nisn;
 }
 
-export function saveGuru() {
-    const nama = document.getElementById('guru-nama').value.trim();
-    const nip = document.getElementById('guru-nip').value.trim();
-    const mapel = document.getElementById('guru-mapel').value.trim();
-    const password = document.getElementById('guru-password').value.trim();
+export async function saveGuru() {
+    const nama = document.getElementById('guru-nama')?.value.trim() || '';
+    const nip = document.getElementById('guru-nip')?.value.trim() || '';
+    const mapel = document.getElementById('guru-mapel')?.value.trim() || '';
+    const password = document.getElementById('guru-password')?.value.trim() || '';
+    
     if (!nama || !nip || !password) { showToast('Lengkapi semua field!', 'warn'); return; }
-    if (DB.users[nip]) { showToast(`NIP "${nip}" sudah terdaftar!`, 'error'); return; }
-    DB.users[nip] = { password, role: 'guru', nama, nip, mapel };
-    closeModal('modal-guru');
-    showToast(`Guru ${nama} berhasil ditambahkan! Username: ${nip} | Password: ${password}`, 'success');
-    if (window.renderDataGuru) window.renderDataGuru();
+    
+    // Cek duplikat via adapter (baca dari Firebase atau lokal)
+    const users = await DataAdapter.getUsers();
+    if (users[nip]) { showToast(`NIP "${nip}" sudah terdaftar!`, 'error'); return; }
+    
+    const userData = { password, role: 'guru', nama, nip, mapel, createdAt: Date.now() };
+    const success = await DataAdapter.saveUser(nip, userData);
+    
+    if (success) {
+        closeModal('modal-guru');
+        showToast(`Guru ${nama} berhasil ditambahkan! Username: ${nip}`, 'success');
+        // Re-render dengan data terbaru
+        if (window.renderDataGuru) window.renderDataGuru();
+    } else {
+        showToast('Gagal menyimpan data ke Firebase', 'error');
+    }
 }
 
-export function saveSiswa() {
-    const nama = document.getElementById('siswa-nama').value.trim();
-    const nisn = document.getElementById('siswa-nisn').value.trim();
-    const kelas = document.getElementById('siswa-kelas').value;
-    const username = document.getElementById('siswa-username').value.trim();
-    const password = document.getElementById('siswa-password').value.trim();
+export async function saveSiswa() {
+    const nama = document.getElementById('siswa-nama')?.value.trim() || '';
+    const nisn = document.getElementById('siswa-nisn')?.value.trim() || '';
+    const kelas = document.getElementById('siswa-kelas')?.value || '';
+    const username = document.getElementById('siswa-username')?.value.trim() || '';
+    const password = document.getElementById('siswa-password')?.value.trim() || '';
+    
     if (!nama || !username || !password) { showToast('Lengkapi semua field!', 'warn'); return; }
-    if (DB.users[username]) { showToast('Username sudah digunakan!', 'error'); return; }
-    DB.users[username] = { password, role: 'siswa', nama, nisn, kelas };
-    closeModal('modal-siswa');
-    showToast(`Siswa ${nama} berhasil ditambahkan!`, 'success');
-    if (window.renderDataSiswa) window.renderDataSiswa();
+    
+    const users = await DataAdapter.getUsers();
+    if (users[username]) { showToast('Username sudah digunakan!', 'error'); return; }
+    
+    const userData = { password, role: 'siswa', nama, nisn, kelas, createdAt: Date.now() };
+    const success = await DataAdapter.saveUser(username, userData);
+    
+    if (success) {
+        closeModal('modal-siswa');
+        showToast(`Siswa ${nama} berhasil ditambahkan!`, 'success');
+        if (window.renderDataSiswa) window.renderDataSiswa();
+    } else {
+        showToast('Gagal menyimpan data ke Firebase', 'error');
+    }
 }
 
-export function resetPasswordGuru(username) {
+export async function resetPasswordGuru(username) {
     generatePassword('_tmp');
     const newPw = document.getElementById('_tmp')?.value || 'Reset@123';
-    DB.users[username].password = newPw;
-    showToast(`Password ${username} direset. Password baru: ${newPw}`, 'info');
-    if (window.renderDataGuru) window.renderDataGuru();
+    
+    const users = await DataAdapter.getUsers();
+    if (users[username]) {
+        users[username].password = newPw;
+        users[username].updatedAt = Date.now();
+        await DataAdapter.saveUser(username, users[username]);
+        showToast(`Password ${username} direset. Password baru: ${newPw}`, 'info');
+        if (window.renderDataGuru) window.renderDataGuru();
+    }
 }
 
-export function resetPasswordSiswa(username) {
+export async function resetPasswordSiswa(username) {
     const newPw = Math.random().toString(36).slice(-6).toUpperCase();
-    DB.users[username].password = newPw;
-    showToast(`Password ${username} direset. Password baru: ${newPw}`, 'info');
-    if (window.renderDataSiswa) window.renderDataSiswa();
+    
+    const users = await DataAdapter.getUsers();
+    if (users[username]) {
+        users[username].password = newPw;
+        users[username].updatedAt = Date.now();
+        await DataAdapter.saveUser(username, users[username]);
+        showToast(`Password ${username} direset. Password baru: ${newPw}`, 'info');
+        if (window.renderDataSiswa) window.renderDataSiswa();
+    }
 }
 
-export function hapusUser(username, role) {
+export async function hapusUser(username, role) {
     if (!confirm(`Hapus ${role} "${username}"?`)) return;
-    delete DB.users[username];
-    showToast(`${role} berhasil dihapus.`, 'success');
-    if (role === 'guru' && window.renderDataGuru) window.renderDataGuru();
-    else if (window.renderDataSiswa) window.renderDataSiswa();
+    
+    const success = await DataAdapter.deleteUser(username);
+    if (success) {
+        showToast(`${role} berhasil dihapus.`, 'success');
+        if (role === 'guru' && window.renderDataGuru) window.renderDataGuru();
+        else if (window.renderDataSiswa) window.renderDataSiswa();
+    } else {
+        showToast('Gagal menghapus data', 'error');
+    }
 }
 
 export function filterSiswa(val) {
@@ -100,65 +145,94 @@ export function openImportGuru() {
     tmp.click();
 }
 
-export function prosesImportGuruFile(inputEl) {
+export async function prosesImportGuruFile(inputEl) {
     const file = inputEl.files[0];
     if (!file) return;
+    
     const reader = new FileReader();
-    reader.onload = e => {
+    reader.onload = async e => {
         try {
             const wb = XLSX.read(e.target.result, { type: 'binary' });
             const ws = wb.Sheets[wb.SheetNames[0]];
             const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+            
             let added = 0, skipped = 0, duplikat = 0;
-            rows.forEach(row => {
+            const users = await DataAdapter.getUsers(); // Baca dari Firebase
+            
+            for (const row of rows) {
                 const nama = String(row['Nama'] || row['nama'] || '').trim();
                 const nip = String(row['NIP'] || row['nip'] || '').trim();
                 const mapel = String(row['Mata Pelajaran'] || row['mata_pelajaran'] || row['Mapel'] || '').trim();
                 const password = String(row['Password'] || row['password'] || '').trim() || 'Guru@' + nip.slice(-4);
-                if (!nama || !nip) { skipped++; return; }
-                if (DB.users[nip]) { duplikat++; return; }
-                DB.users[nip] = { password, role: 'guru', nama, nip, mapel };
+                
+                if (!nama || !nip) { skipped++; continue; }
+                if (users[nip]) { duplikat++; continue; }
+                
+                users[nip] = { password, role: 'guru', nama, nip, mapel, createdAt: Date.now() };
                 added++;
-            });
+            }
+            
+            // Simpan semua perubahan sekaligus ke Firebase
+            await DataAdapter.saveUsersBatch(users);
+            
             let msg = `✅ ${added} guru berhasil diimport`;
             if (duplikat) msg += `, ${duplikat} NIP sudah terdaftar`;
             if (skipped) msg += `, ${skipped} baris tidak lengkap`;
             showToast(msg, added > 0 ? 'success' : 'warn');
+            
             if (window.renderDataGuru) window.renderDataGuru();
-        } catch (err) { showToast('Gagal membaca file. Pastikan format Excel sesuai.', 'error'); }
+        } catch (err) {
+            console.error(err);
+            showToast('Gagal membaca file. Pastikan format Excel sesuai.', 'error');
+        }
     };
-    reader.readAsBinaryString(file); inputEl.value = '';
+    reader.readAsBinaryString(file);
+    inputEl.value = '';
 }
 
-export function prosesImportSiswaFile(file) {
+export async function prosesImportSiswaFile(file) {
     if (!file) return;
+    
     const reader = new FileReader();
-    reader.onload = e => {
+    reader.onload = async e => {
         try {
             const wb = XLSX.read(e.target.result, { type: 'binary' });
             const ws = wb.Sheets[wb.SheetNames[0]];
             const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+            
             let added = 0, skipped = 0;
-            rows.forEach(row => {
+            const users = await DataAdapter.getUsers();
+            
+            for (const row of rows) {
                 const nama = String(row['Nama'] || row['nama'] || '').trim();
                 const nisn = String(row['NISN'] || row['nisn'] || '').trim();
                 const kelas = String(row['Kelas'] || row['kelas'] || '').trim();
                 const username = String(row['Username'] || row['username'] || nisn).trim();
                 const password = String(row['Password'] || row['password'] || nisn.slice(-6) || 'Siswa123').trim();
-                if (!nama || !username) { skipped++; return; }
-                if (DB.users[username]) { skipped++; return; }
-                DB.users[username] = { password, role: 'siswa', nama, nisn, kelas };
+                
+                if (!nama || !username) { skipped++; continue; }
+                if (users[username]) { skipped++; continue; }
+                
+                users[username] = { password, role: 'siswa', nama, nisn, kelas, createdAt: Date.now() };
                 added++;
-            });
+            }
+            
+            await DataAdapter.saveUsersBatch(users);
             showToast(`✅ ${added} siswa berhasil diimport${skipped ? `, ${skipped} baris dilewati` : ''}!`, 'success');
+            
             if (window.renderDataSiswa) window.renderDataSiswa();
-        } catch (err) { showToast('Gagal membaca file. Pastikan format Excel sesuai.', 'error'); }
+        } catch (err) {
+            console.error(err);
+            showToast('Gagal membaca file. Pastikan format Excel sesuai.', 'error');
+        }
     };
     reader.readAsBinaryString(file);
 }
 
-export function renderDataGuru() {
-    const gurus = Object.entries(DB.users).filter(([,u]) => u.role === 'guru');
+export async function renderDataGuru() {
+    const users = await DataAdapter.getUsers();
+    const gurus = Object.entries(users).filter(([,u]) => u.role === 'guru');
+    
     document.getElementById('main-content').innerHTML = `
     <div class="page-header flex justify-between items-center"><div><div class="page-title">👨‍🏫 Data Guru</div><div class="page-subtitle">${gurus.length} guru terdaftar</div></div>
     <div class="flex gap-2"><button class="btn btn-ghost" onclick="window.downloadTemplateGuru()">📄 Template</button><button class="btn btn-ghost" onclick="window.openImportGuru()">📥 Import Excel</button><button class="btn btn-success" onclick="window.downloadExcelGuru()">📥 Download Excel</button><button class="btn btn-primary" onclick="window.openModal('modal-guru')">➕ Tambah Guru</button></div></div>
@@ -167,12 +241,15 @@ export function renderDataGuru() {
     </tbody></table></div></div><input type="file" id="import-guru-input" accept=".xlsx,.xls,.csv" style="display:none;" onchange="window.prosesImportGuruFile(this)">`;
 }
 
-export function renderDataSiswa() {
-    const siswas = Object.entries(DB.users).filter(([,u]) => u.role === 'siswa');
+export async function renderDataSiswa() {
+    const users = await DataAdapter.getUsers();
+    const siswas = Object.entries(users).filter(([,u]) => u.role === 'siswa');
+    const kelas = await DataAdapter.getKelas();
+    
     document.getElementById('main-content').innerHTML = `
-    <div class="page-header flex justify-between items-center"><div><div class="page-title">🎓 Data Siswa</div><div class="page-subtitle">${siswas.length} siswa terdaftar • ${DB.kelas.length} kelas tersedia</div></div>
+    <div class="page-header flex justify-between items-center"><div><div class="page-title">🎓 Data Siswa</div><div class="page-subtitle">${siswas.length} siswa terdaftar • ${kelas.length} kelas tersedia</div></div>
     <div class="flex gap-2"><button class="btn btn-ghost" onclick="window.downloadTemplateSiswa()">📄 Template</button><button class="btn btn-ghost" onclick="window.openImportSiswa()">📥 Import Excel</button><button class="btn btn-success" onclick="window.downloadExcelSiswa()">📥 Download Excel</button><button class="btn btn-primary" onclick="window.openModal('modal-siswa')">➕ Tambah Siswa</button></div></div>
-    <div class="card"><div class="flex gap-3 mb-3" style="align-items:center;"><div class="search-input" style="flex:1;"><input type="text" placeholder="Cari nama atau NISN..." oninput="window.filterSiswaKombinasi()" id="cari-siswa" /></div><div style="flex-shrink:0;"><select id="filter-kelas-siswa" onchange="window.filterSiswaKombinasi()" style="padding:9px 14px;font-size:13px;"><option value="">Semua Kelas</option>${DB.kelas.map(k=>`<option value="${k}">${k}</option>`).join('')}</select></div><button class="btn btn-ghost btn-sm" onclick="document.getElementById('cari-siswa').value='';document.getElementById('filter-kelas-siswa').value='';window.filterSiswaKombinasi();">↺ Reset</button></div>
+    <div class="card"><div class="flex gap-3 mb-3" style="align-items:center;"><div class="search-input" style="flex:1;"><input type="text" placeholder="Cari nama atau NISN..." oninput="window.filterSiswaKombinasi()" id="cari-siswa" /></div><div style="flex-shrink:0;"><select id="filter-kelas-siswa" onchange="window.filterSiswaKombinasi()" style="padding:9px 14px;font-size:13px;"><option value="">Semua Kelas</option>${kelas.map(k=>`<option value="${k}">${k}</option>`).join('')}</select></div><button class="btn btn-ghost btn-sm" onclick="document.getElementById('cari-siswa').value='';document.getElementById('filter-kelas-siswa').value='';window.filterSiswaKombinasi();">↺ Reset</button></div>
     <div class="table-wrapper"><table id="tabel-siswa"><thead><tr><th>Nama Siswa</th><th>NISN</th><th>Kelas</th><th>Username</th><th>Password</th><th>Aksi</th></tr></thead><tbody id="tbody-siswa">
     ${siswas.map(([username, u]) => `<tr data-search="${u.nama.toLowerCase()} ${u.nisn}" data-kelas="${u.kelas||''}"><td><div class="flex items-center gap-2"><div class="avatar avatar-siswa" style="width:28px;height:28px;font-size:11px;">${u.nama.charAt(0)}</div>${u.nama}</div></td><td class="font-mono text-sm">${u.nisn}</td><td><span class="badge badge-blue">${u.kelas||'—'}</span></td><td class="font-mono text-sm">${username}</td><td><div class="flex items-center gap-2"><span class="font-mono text-sm" id="pw-siswa-${username}" style="letter-spacing:2px;">••••••••</span><button class="btn-eye" onclick="window.togglePw('pw-siswa-${username}','${u.password}')" title="Tampilkan/sembunyikan password">👁️</button></div></td><td><div class="flex gap-2"><button class="btn btn-ghost btn-sm" onclick="window.resetPasswordSiswa('${username}')">🔄 Reset PW</button><button class="btn btn-danger btn-sm" onclick="window.hapusUser('${username}','siswa')">🗑️</button></div></td></tr>`).join('')}
     </tbody></table></div></div>`;
