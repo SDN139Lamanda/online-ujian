@@ -74,5 +74,22 @@ document.addEventListener('DOMContentLoaded', () => {
         if (examState.ujian?.opsiAntiCurang?.fullscreen) enterFullscreen();
     });
 });
+// ================================================================
+// FIREBASE INIT
+// ================================================================
+let firebaseReady = false;
+
+try {
+  // Cek apakah rtdb tersedia dari config
+  if (FirebaseService?.db) {
+    firebaseReady = true;
+    console.log('🔥 Firebase Connected:', FirebaseService.db.toString());
+  } else {
+    console.warn('⚠️ Firebase RTDB not initialized - Using Local DB');
+  }
+} catch (e) {
+  console.error('❌ Firebase init error:', e);
+}
+
 
 console.log('✅ ExamShield Modules Loaded Successfully — All functions bound.');
