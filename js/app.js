@@ -3,6 +3,12 @@ import { DB } from './core/db.js';
 import { session, examState, pwVisible, notifTimers } from './core/state.js';
 import { showPage, buildApp, navigateTo, renderView } from './core/router.js';
 
+// js/app.js — Tambahkan di bagian import
+import { FirebaseService } from './services/firebase.js';
+import { DataAdapter } from './services/dataAdapter.js';
+
+// ... (import lainnya tetap sama) ...
+
 // Modules
 import { doLogin, doLogout, gantiPassword, gantiPasswordGuru, selectRole } from './modules/auth.js';
 import { saveGuru, saveSiswa, resetPasswordGuru, resetPasswordSiswa, hapusUser, filterSiswaKombinasi, openImportSiswa, openImportGuru, prosesImportGuruFile, prosesImportSiswaFile, renderDataGuru, renderDataSiswa } from './modules/users.js';
