@@ -1,8 +1,11 @@
-// Import SDK Firebase
-import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-import { getDatabase } from "firebase/database";
+// firebase-config.js
+// ⚡ Firebase Config - Menggunakan CDN URLs agar kompatibel dengan browser ES Modules
+
+// Import Firebase SDK v9 Modular via CDN (dengan version pinning)
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+import { getAuth } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+import { getFirestore } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+import { getDatabase } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
 
 // Konfigurasi dari Firebase Console
 const firebaseConfig = {
@@ -20,5 +23,8 @@ const app = initializeApp(firebaseConfig);
 
 // Export modul yang dibutuhkan
 export const auth = getAuth(app);
-export const db = getFirestore(app);
-export const rtdb = getDatabase(app);
+export const db = getFirestore(app);      // Firestore (jika dipakai nanti)
+export const rtdb = getDatabase(app);     // Realtime Database (yang kita pakai sekarang)
+
+// Export app juga untuk keperluan lain
+export { app };
