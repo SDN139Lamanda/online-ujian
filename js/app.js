@@ -1,22 +1,17 @@
+// js/app.js — Entry Point (ES Module + Global Binding)
 import { DB } from './core/db.js';
 import { session, examState, pwVisible, notifTimers } from './core/state.js';
 import { showPage, buildApp, navigateTo, renderView, renderTabelHasil, filterHasil } from './core/router.js';
-
-// Modules
 import { doLogin, doLogout, gantiPassword, gantiPasswordGuru, selectRole } from './modules/auth.js';
 import { saveGuru, saveSiswa, resetPasswordGuru, resetPasswordSiswa, hapusUser, filterSiswaKombinasi, openImportSiswa, openImportGuru, prosesImportGuruFile, prosesImportSiswaFile, renderDataGuru, renderDataSiswa } from './modules/users.js';
 import { saveUjian, hapusUjian, toggleUjianStatus, bukaTokenModal, validateToken, renderDataUjian, renderUjianTersedia, renderHasilSiswa, exportNilai, downloadExcelGuru, downloadExcelSiswa, lihatDetailHasil, printHasil } from './modules/exams.js';
 import { saveSoalBatch, saveSoal, renderBankSoalAdmin, renderBankSoalGuru, hapusSoalGuru, toggleFolderSoal, toggleDropdownUjian, buatUjianDariBankSoal, previewGambarSoalRow, hapusGambarRow, previewGambarOpsi, hapusGambarOpsi, uploadGambarSoal, prosesUploadGambar, lihatGambarSoal, downloadTemplateSoal, openImportSoalModal, prosesImportSoal, tambahSoalRow, renderAllSoalRows, updateOpsiRows, toggleEssayOption } from './modules/questions.js';
 import { exportToExcel, downloadTemplateSiswa, downloadTemplateGuru, cetakPdfNilai } from './modules/import-export.js';
 import { renderMonitoring, renderLogAktivitas } from './modules/monitoring.js';
-
-// Exam Engine
 import { startExamTimer, stopExamTimer, confirmSubmit, autoSubmitExam } from './exam-engine/timer.js';
 import { renderQuestion, gotoQuestion, updateNav, toggleFlag, updateProgress, buildQuestionNav } from './exam-engine/renderer.js';
 import { selectAnswer, togglePGK, pilihBS, saveEssay } from './exam-engine/answer.js';
 import { setupAntiCheat, removeAntiCheat, triggerViolation, forceSubmit, enterFullscreen, exitFullscreen } from './exam-engine/anti-cheat.js';
-
-// Utils
 import { showToast } from './utils/toast.js';
 import { openModal, closeModal } from './utils/modal.js';
 import { requestNotificationPermission, jadwalkanNotifikasiUjian } from './utils/notifications.js';
@@ -24,7 +19,7 @@ import { initApp } from './utils/init.js';
 import { getKelasOptions, refreshAllKelasSelects, togglePwField, togglePw, generatePassword, generateToken, syncGuruUsername, syncSiswaFromNISN } from './utils/helpers.js';
 
 // ================================================================
-// GLOBAL BINDING (Agar onclick="..." di HTML tetap berfungsi)
+// GLOBAL BINDING — WAJIB agar onclick="..." di HTML berfungsi
 // ================================================================
 window.DB = DB; window.session = session; window.examState = examState; window.pwVisible = pwVisible;
 window.showPage = showPage; window.buildApp = buildApp; window.navigateTo = navigateTo; window.renderView = renderView;
@@ -40,22 +35,19 @@ window.selectAnswer = selectAnswer; window.togglePGK = togglePGK; window.pilihBS
 window.setupAntiCheat = setupAntiCheat; window.removeAntiCheat = removeAntiCheat; window.triggerViolation = triggerViolation; window.forceSubmit = forceSubmit; window.enterFullscreen = enterFullscreen; window.exitFullscreen = exitFullscreen;
 window.getKelasOptions = getKelasOptions; window.refreshAllKelasSelects = refreshAllKelasSelects; window.togglePwField = togglePwField; window.togglePw = togglePw; window.generatePassword = generatePassword; window.generateToken = generateToken; window.syncGuruUsername = syncGuruUsername; window.syncSiswaFromNISN = syncSiswaFromNISN;
 window.requestNotificationPermission = requestNotificationPermission; window.jadwalkanNotifikasiUjian = jadwalkanNotifikasiUjian;
-
-// Fungsi tambahan yang dipanggil dari dalam renderView
 window.renderDataGuru = renderDataGuru; window.renderDataSiswa = renderDataSiswa; window.renderDataUjian = renderDataUjian; window.renderUjianTersedia = renderUjianTersedia; window.renderHasilSiswa = renderHasilSiswa;
 window.renderBankSoalAdmin = renderBankSoalAdmin; window.renderBankSoalGuru = renderBankSoalGuru; window.renderMonitoring = renderMonitoring; window.renderLogAktivitas = renderLogAktivitas;
 window.renderTabelHasil = renderTabelHasil; window.filterHasil = filterHasil;
 window.openImportSiswa = openImportSiswa; window.openImportGuru = openImportGuru; window.prosesImportGuruFile = prosesImportGuruFile; window.prosesImportSiswaFile = prosesImportSiswaFile;
 window.renderAllSoalRows = renderAllSoalRows; window.toggleDropdownUjian = toggleDropdownUjian;
 
-// Event Listeners & Init
+// Init
 document.addEventListener('DOMContentLoaded', () => {
     initApp();
-    // Listener tombol kembali setelah pelanggaran
     document.getElementById('btn-return-exam')?.addEventListener('click', () => {
         document.getElementById('cheat-warning').classList.add('hidden');
         if (examState.ujian?.opsiAntiCurang?.fullscreen) enterFullscreen();
     });
 });
 
-console.log('✅ ExamShield Fully Modularized & Loaded.');
+console.log('✅ ExamShield Loaded — All functions exposed to window');
