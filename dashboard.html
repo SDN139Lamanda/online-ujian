@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ExamShield — Dashboard</title>
+    
+    <!-- Fonts & Library -->
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <!-- CSS Terpisah -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <!-- ===== GLOBAL OVERLAY ===== -->
+    <div id="toast-container"></div>
+
+    <div id="cheat-warning" class="hidden">
+        <div style="font-size:56px">⚠️</div>
+        <h2>PELANGGARAN TERDETEKSI!</h2>
+        <p id="cheat-warning-msg">Anda berpindah tab / keluar dari jendela ujian. Tindakan ini telah dicatat.</p>
+        <button class="btn btn-lg" id="btn-return-exam" style="background:#fff;color:#ef4444;font-weight:700;">Kembali ke Ujian</button>
+        <p style="font-size:12px;opacity:0.7;">Pelanggaran ke: <span id="violation-count">1</span> | Maks 3 kali → Ujian otomatis dikumpulkan</p>
+    </div>
+
+    <!-- ===== PAGE: APP (DASHBOARD) ===== -->
+    <div class="page active" id="page-app">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-brand">🛡️ ExamShield</div>
+                <div class="sidebar-user" style="margin-top:10px;">
+                    <div class="avatar" id="sb-avatar">A</div>
+                    <div>
+                        <div style="font-size:13px;font-weight:600;" id="sb-name">Admin</div>
+                        <div class="sidebar-role" id="sb-role">Administrator</div>
+                    </div>
+                </div>
+            </div>
+            <nav class="sidebar-nav" id="sidebar-nav">
+                <!-- Diisi otomatis oleh JS (buildNav) -->
+            </nav>
+            <div class="sidebar-footer">
+                <button class="btn btn-ghost btn-full btn-sm" onclick="doLogout()">⬅ Keluar</button>
+            </div>
+        </div>
+        <div class="main-content" id="main-content">
+            <!-- Diisi otomatis oleh JS (renderView) -->
+        </div>
+    </div>
+
+    <!-- ===== MODALS ===== -->
+    <!-- Modal: Tambah Guru -->
+    <div id="modal-guru" class="modal-overlay hidden">
+        <div class="modal">
+            <div class="modal-header"><span class="modal-title">➕ Tambah Guru Baru</span><button class="btn-close" onclick="closeModal('modal-guru')">✕</button></div>
+            <div class="modal-body">
+                <div class="alert alert-info mb-3"><span>ℹ️</span><span><strong>Username login guru = NIP</strong>. Pastikan NIP diisi dengan benar karena akan digunakan sebagai username login.</span></div>
+                <div class="grid-2">
+                    <div class="form-group"><label>Nama Lengkap</label><input type="text" id="guru-nama" placeholder="Nama guru" /></div>
+                    <div class="form-group"><label>NIP <span style="color:var(--accent);font-size:10px;">(= Username Login)</span></label><input type="text" id="guru-nip" placeholder="cth: 198501012010011001" oninput="syncGuruUsername()" /></div>
+                </div>
+                <div class="grid-2">
+                    <div class="form-group"><label>Mata Pelajaran</label><input type="text" id="guru-mapel" placeholder="cth: Matematika" /></div>
+                    <div class="form-group"><label>Username Login <span style="color:var(--accent2);font-size:10px;">(otomatis dari NIP)</span></label><input type="text" id="guru-username" readonly style="background:var(--bg3);color:var(--accent2);font-family:'JetBrains Mono',monospace;" placeholder="Terisi otomatis dari NIP" /></div>
+                </div>
+                <div class="form-group">
+                    <label>Password (Otomatis)</label>
+                    <div class="flex gap-2"><input type="text" id="guru-password" readonly style="font-family:'JetBrains Mono',monospace;" /><button class="btn btn-ghost" onclick="generatePassword('guru-password')">🔄</button></div>
+                    <div class="text-xs text-muted mt-1">Password akan diberikan kepada guru untuk login pertama kali.</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" onclick="closeModal('modal-guru')">Batal</button>
+                <button class="btn btn-primary" onclick="saveGuru()">💾 Simpan Guru</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Tambah Siswa -->
+    <div id="modal-siswa" class="modal-overlay hidden">
+        <div class="modal">
+            <div class="modal-header"><span class="modal-title">➕ Tambah Siswa Baru</span><button class="btn-close" onclick="closeModal('modal-siswa')">✕</button></div>
+            <div class="modal-body">
+                <div class="alert alert-info mb-3" style="font-size:12px;"><span>ℹ️</span><span><strong>Username dan password otomatis dari NISN</strong>. Bisa diubah manual jika diperlukan.</span></div>
+                <div class="grid-2">
+                    <div class="form-group"><label>Nama Lengkap</label><input type="text" id="siswa-nama" placeholder="Nama siswa" /></div>
+                    <div class="form-group"><label>NISN <span style="color:var(--accent);font-size:10px;">(→ Username & Password)</span></label><input type="text" id="siswa-nisn" placeholder="Nomor induk siswa" oninput="syncSiswaFromNISN()" /></div>
+                </div>
+                <div class="grid-2">
+                    <div class="form-group"><label>Kelas</label><select id="siswa-kelas"></select></div>
+                    <div class="form-group"><label>Username Login <span style="color:var(--accent2);font-size:10px;">(otomatis dari NISN)</span></label><input type="text" id="siswa-username" placeholder="Terisi otomatis dari NISN" style="font-family:'JetBrains Mono',monospace;color:var(--accent2);" /></div>
+                </div>
+                <div class="form-group">
+                    <label>Password <span style="color:var(--accent2);font-size:10px;">(otomatis dari NISN)</span></label>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <div class="pw-wrap" style="flex:1;"><input type="password" id="siswa-password" style="font-family:'JetBrains Mono',monospace;" placeholder="Terisi otomatis dari NISN" /><button type="button" class="pw-toggle" onclick="togglePwField('siswa-password',this)" tabindex="-1">👁️</button></div>
+                        <button class="btn btn-ghost" onclick="generatePassword('siswa-password')" title="Generate password acak">🔄</button>
+                    </div>
+                    <div class="text-xs text-muted mt-1">Default: NISN siswa. Bisa diganti manual atau klik 🔄 untuk generate acak.</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" onclick="closeModal('modal-siswa')">Batal</button>
+                <button class="btn btn-primary" onclick="saveSiswa()">💾 Simpan Siswa</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Buat Ujian -->
+    <div id="modal-ujian" class="modal-overlay hidden">
+        <div class="modal modal-lg">
+            <div class="modal-header"><span class="modal-title">📝 Buat Ujian Baru</span><button class="btn-close" onclick="closeModal('modal-ujian')">✕</button></div>
+            <div class="modal-body">
+                <div class="grid-2">
+                    <div class="form-group"><label>Nama Ujian</label><input type="text" id="ujian-nama" placeholder="cth: UTS Matematika Kelas XII" /></div>
+                    <div class="form-group"><label>Mata Pelajaran</label><input type="text" id="ujian-mapel" placeholder="cth: Matematika" /></div>
+                </div>
+                <div class="grid-2">
+                    <div class="form-group"><label>Kelas Peserta</label><select id="ujian-kelas"></select></div>
+                    <div class="form-group"><label>Durasi (menit)</label><input type="number" id="ujian-durasi" value="90" min="10" max="300" /></div>
+                </div>
+                <div class="grid-2">
+                    <div class="form-group"><label>Waktu Mulai</label><input type="datetime-local" id="ujian-mulai" /></div>
+                    <div class="form-group"><label>Waktu Selesai</label><input type="datetime-local" id="ujian-selesai" /></div>
+                </div>
+                <div class="divider"></div>
+                <div style="font-size:13px;font-weight:600;margin-bottom:12px;">⚙️ Pengaturan Anti-Curang</div>
+                <div class="grid-2">
+                    <div>
+                        <div class="check-row"><input type="checkbox" id="opt-acak-soal" checked /><label style="text-transform:none;font-size:13px;">Acak urutan soal</label></div>
+                        <div class="check-row"><input type="checkbox" id="opt-acak-opsi" checked /><label style="text-transform:none;font-size:13px;">Acak pilihan jawaban</label></div>
+                        <div class="check-row"><input type="checkbox" id="opt-fullscreen" checked /><label style="text-transform:none;font-size:13px;">Wajib mode fullscreen</label></div>
+                        <div class="check-row"><input type="checkbox" id="opt-no-copy" checked /><label style="text-transform:none;font-size:13px;">Nonaktifkan copy-paste</label></div>
+                    </div>
+                    <div>
+                        <div class="check-row"><input type="checkbox" id="opt-tab-detect" checked /><label style="text-transform:none;font-size:13px;">Deteksi pindah tab</label></div>
+                        <div class="check-row"><input type="checkbox" id="opt-no-rightclick" checked /><label style="text-transform:none;font-size:13px;">Nonaktifkan klik kanan</label></div>
+                        <div class="check-row"><input type="checkbox" id="opt-satu-sesi" checked /><label style="text-transform:none;font-size:13px;">Satu sesi login per siswa</label></div>
+                        <div class="check-row"><input type="checkbox" id="opt-kamera" /><label style="text-transform:none;font-size:13px;">Aktivasi kamera (jika ada)</label></div>
+                    </div>
+                </div>
+                <div class="form-group mt-3">
+                    <label>Jumlah Soal dari Bank Soal</label>
+                    <input type="number" id="ujian-jml-soal" value="20" min="1" max="100" />
+                    <div class="text-xs text-muted mt-1">Soal akan diambil acak dari bank soal sesuai mata pelajaran.</div>
+                </div>
+                <div class="form-group">
+                    <label>Token Ujian (Kode Akses)</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="ujian-token" style="font-family:'JetBrains Mono',monospace;letter-spacing:2px;" readonly />
+                        <button class="btn btn-ghost" onclick="generateToken()">🔄</button>
+                    </div>
+                    <div class="text-xs text-muted mt-1">Guru bagikan token ini kepada siswa untuk mengakses ujian.</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" onclick="closeModal('modal-ujian')">Batal</button>
+                <button class="btn btn-primary" onclick="saveUjian()">💾 Simpan & Terbitkan</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Bank Soal -->
+    <div id="modal-soal" class="modal-overlay hidden">
+        <div class="modal" style="max-width:820px;">
+            <div class="modal-header"><span class="modal-title">📖 Input Soal ke Bank</span><button class="btn-close" onclick="closeModal('modal-soal')">✕</button></div>
+            <div class="modal-body" style="max-height:78vh;overflow-y:auto;">
+                <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;margin-bottom:16px;">
+                    <div style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Pengaturan Batch Soal</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;">
+                        <div class="form-group" style="margin:0;"><label>Mata Pelajaran</label><input type="text" id="soal-mapel" placeholder="cth: Matematika" /></div>
+                        <div class="form-group" style="margin:0;"><label>Jenis Soal</label><select id="soal-jenis" onchange="toggleEssayOption()"><option value="pg">Pilihan Ganda (PG)</option><option value="pgk">PG Kompleks</option><option value="bs">Benar / Salah</option><option value="essay">Essay</option></select></div>
+                        <div class="form-group" style="margin:0;" id="wrap-jml-opsi"><label id="label-jml-opsi">Jumlah Opsi</label><select id="soal-jml-opsi" onchange="updateOpsiRows()"><option value="3">3 Opsi (A–C)</option><option value="4" selected>4 Opsi (A–D)</option><option value="5">5 Opsi (A–E)</option></select></div>
+                        <div class="form-group" style="margin:0;"><label>Poin / Soal</label><input type="number" id="soal-poin" value="5" min="1" max="100" /></div>
+                    </div>
+                </div>
+                <div id="soal-list-container"></div>
+                <button class="btn btn-ghost btn-full mt-3" onclick="tambahSoalRow()" style="border-style:dashed;">➕ Tambah Soal Berikutnya</button>
+            </div>
+            <div class="modal-footer" style="justify-content:space-between;">
+                <span class="text-sm text-muted" id="soal-count-info">1 soal siap disimpan</span>
+                <div class="flex gap-2">
+                    <button class="btn btn-ghost" onclick="closeModal('modal-soal')">Batal</button>
+                    <button class="btn btn-primary" onclick="saveSoalBatch()">💾 Simpan Semua Soal</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Ganti Password -->
+    <div id="modal-ganti-pw" class="modal-overlay hidden">
+        <div class="modal" style="max-width:400px;">
+            <div class="modal-header"><span class="modal-title">🔐 Ganti Password</span><button class="btn-close" onclick="closeModal('modal-ganti-pw')">✕</button></div>
+            <div class="modal-body">
+                <div class="form-group"><label>Password Lama</label><div class="pw-wrap"><input type="password" id="pw-lama" placeholder="Masukkan password lama" /><button type="button" class="pw-toggle" onclick="togglePwField('pw-lama',this)" tabindex="-1">👁️</button></div></div>
+                <div class="form-group"><label>Password Baru</label><div class="pw-wrap"><input type="password" id="pw-baru" placeholder="Min. 6 karakter" /><button type="button" class="pw-toggle" onclick="togglePwField('pw-baru',this)" tabindex="-1">👁️</button></div></div>
+                <div class="form-group"><label>Konfirmasi Password Baru</label><div class="pw-wrap"><input type="password" id="pw-konfirm" placeholder="Ulangi password baru" /><button type="button" class="pw-toggle" onclick="togglePwField('pw-konfirm',this)" tabindex="-1">👁️</button></div></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" onclick="closeModal('modal-ganti-pw')">Batal</button>
+                <button class="btn btn-primary" onclick="gantiPassword()">🔐 Simpan Password</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Token Ujian -->
+    <div id="modal-token" class="modal-overlay hidden">
+        <div class="modal" style="max-width:400px;">
+            <div class="modal-header"><span class="modal-title">🎯 Masukkan Token Ujian</span><button class="btn-close" onclick="closeModal('modal-token')">✕</button></div>
+            <div class="modal-body">
+                <p style="font-size:13px;color:var(--text2);margin-bottom:16px;">Masukkan token/kode akses ujian yang diberikan oleh guru Anda.</p>
+                <div class="form-group"><label>Token Ujian</label><input type="text" id="input-token" placeholder="cth: ABC123" style="font-family:'JetBrains Mono';letter-spacing:2px;text-transform:uppercase;" /></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" onclick="closeModal('modal-token')">Batal</button>
+                <button class="btn btn-primary" onclick="validateToken()">✅ Mulai Ujian</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Detail Hasil -->
+    <div id="modal-hasil" class="modal-overlay hidden">
+        <div class="modal modal-lg">
+            <div class="modal-header"><span class="modal-title">📊 Detail Hasil Ujian</span><button class="btn-close" onclick="closeModal('modal-hasil')">✕</button></div>
+            <div class="modal-body" id="modal-hasil-body"></div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" onclick="closeModal('modal-hasil')">Tutup</button>
+                <button class="btn btn-success" onclick="printHasil()">🖨️ Cetak</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts: Module Loader -->
+    <script type="module" src="./firebase-config.js"></script>
+    <script type="module" src="./js/app.js"></script>
+</body>
+</html>
