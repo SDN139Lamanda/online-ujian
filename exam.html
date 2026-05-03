@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ExamShield — Mode Ujian</title>
+    
+    <!-- Fonts & Library -->
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <!-- CSS Terpisah -->
+    <link rel="stylesheet" href="css/style.css">
+    
+    <style>
+        /* CSS Spesifik untuk Halaman Ujian jika diperlukan override */
+        body { background: var(--bg); overflow: hidden; }
+    </style>
+</head>
+<body>
+
+    <!-- ===== TOAST CONTAINER ===== -->
+    <div id="toast-container"></div>
+
+    <!-- ===== CHEAT WARNING ===== -->
+    <div id="cheat-warning" class="hidden">
+        <div style="font-size:56px">⚠️</div>
+        <h2>PELANGGARAN TERDETEKSI!</h2>
+        <p id="cheat-warning-msg">Anda berpindah tab / keluar dari jendela ujian. Tindakan ini telah dicatat.</p>
+        <button class="btn btn-lg" id="btn-return-exam" style="background:#fff;color:#ef4444;font-weight:700;">Kembali ke Ujian</button>
+        <p style="font-size:12px;opacity:0.7;">Pelanggaran ke: <span id="violation-count">1</span> | Maks 3 kali → Ujian otomatis dikumpulkan</p>
+    </div>
+
+    <!-- ===== FULLSCREEN PROMPT ===== -->
+    <div id="fullscreen-prompt" class="hidden">
+        <div style="font-size:56px">🖥️</div>
+        <h2 style="font-size:22px;font-weight:800;">Mode Fullscreen Diperlukan</h2>
+        <p style="color:var(--text2);font-size:14px;max-width:380px;">Ujian harus dilaksanakan dalam mode layar penuh untuk mencegah kecurangan. Klik tombol di bawah untuk melanjutkan.</p>
+        <button class="btn btn-primary btn-lg" onclick="enterFullscreen()">🖥️ Masuk Mode Fullscreen</button>
+    </div>
+
+    <!-- PAGE: EXAM (FULLSCREEN) -->
+    <div class="page active" id="page-exam">
+        <div class="exam-header">
+            <div>
+                <div class="exam-title" id="exam-title">Ujian Matematika</div>
+                <div class="exam-info" id="exam-info">Nama: • Kelas: XII IPA 1</div>
+            </div>
+            <div class="flex items-center gap-4">
+                <div style="text-align:right;font-size:12px;color:var(--text2);">
+                    <div>Soal Terjawab</div>
+                    <div class="font-mono" id="exam-progress-text">0 / 0</div>
+                </div>
+                <div class="exam-timer" id="exam-timer">00:00</div>
+            </div>
+        </div>
+        <div class="exam-body">
+            <div class="exam-nav">
+                <div class="exam-nav-title">Navigasi Soal</div>
+                <div class="question-nums" id="question-nums"></div>
+                <div class="divider"></div>
+                <div style="font-size:11px;color:var(--text3);margin-bottom:6px;">Keterangan:</div>
+                <div style="display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--text2);">
+                    <div class="flex items-center gap-2"><div class="q-num" style="width:20px;height:20px;font-size:10px;border-color:var(--accent);color:var(--accent);background:rgba(79,142,247,0.15);">1</div> Terjawab</div>
+                    <div class="flex items-center gap-2"><div class="q-num" style="width:20px;height:20px;font-size:10px;border-color:var(--accent3);color:var(--accent3);background:rgba(245,158,11,0.15);">1</div> Ditandai</div>
+                    <div class="flex items-center gap-2"><div class="q-num" style="width:20px;height:20px;font-size:10px;">1</div> Belum</div>
+                </div>
+                <div class="divider"></div>
+                <button class="btn btn-warn btn-sm" onclick="toggleFlag()" style="width:100%;justify-content:center;">🚩 Tandai Soal</button>
+            </div>
+            <div class="exam-main" id="exam-main"></div>
+        </div>
+    </div>
+
+    <!-- Modal: Detail Hasil -->
+    <div id="modal-hasil" class="modal-overlay hidden">
+        <div class="modal modal-lg">
+            <div class="modal-header"><span class="modal-title">📊 Detail Hasil Ujian</span><button class="btn-close" onclick="closeModal('modal-hasil')">✕</button></div>
+            <div class="modal-body" id="modal-hasil-body"></div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" onclick="closeModal('modal-hasil')">Tutup</button>
+                <button class="btn btn-success" onclick="printHasil()">🖨️ Cetak</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCRIPTS: EXAM ENGINE -->
+    <script>
+    // ================================================================
+    // 1. DATA & STATE (Simulasi agar file ini bisa jalan mandiri)
+    // ================================================================
+    
+    // Database Mockup (Harus sinkron dengan index.html atau diambil via API)
+    const DB = {
+        users: {
+            admin: { nama: 'Administrator', role: 'admin' },
+            siswa001: { nama: 'Ahmad Fauzi', role: 'siswa', kelas: 'XII IPA 1' }
+        },
+        bankSoal: [
+            { id: 1, guruId: 'guru1', mapel: 'Matematika', jenis: 'pg', pertanyaan: 'Berapakah hasil dari 2³ + √16?', opsi: ['10','12','14','16'], kunci: 1, poin: 5, aktif: true, gambar: null },
+            { id: 2, guruId: 'guru1', mapel: 'Matematika', jenis: 'pg', pertanyaan: 'Jika f(x) = 3x² - 2x + 1, maka f(2) adalah...', opsi: ['9','10','11','12'], kunci: 0, poin: 5, aktif: true, gambar: null },
+            { id: 3, guruId: 'guru1', mapel: 'Matematika', jenis: 'bs', pertanyaan: 'Tentukan kebenaran pernyataan:', pernyataan: ['2+2=4', 'Matahari terbit dari barat'], kunciBS: ['benar', 'salah'], poin: 5, aktif: true, gambar: null },
+        ],
+        hasil: []
+    };
+
+    // Session & State Ujian
+    let session = { user: 'siswa001', userData: DB.users['siswa001'] }; // Default login siswa
+    
+    let examState = {
+        ujian: { 
+            id: 'UJ001', nama: 'UTS Matematika', durasi: 60, 
+            opsiAntiCurang: { acakSoal: true, acakOpsi: true, fullscreen: true, noCopy: true, tabDetect: true, noRightClick: true } 
+        }, 
+        soalList: [], 
+        currentQ: 0,
+        answers: {}, 
+        flagged: new Set(),
+        timer: null, 
+        timeLeft: 0,
+        violations: 0, 
+        maxViolations: 3 
+    };
+
+    // ================================================================
+    // 2. UTILITY FUNCTIONS
+    // ================================================================
+    function showToast(msg, type = 'info') {
+        const icons = { success: '✅', error: '❌', warn: '⚠️', info: 'ℹ️' };
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type === 'warn' ? 'warn' : type}`;
+        toast.innerHTML = `<span>${icons[type]||'ℹ️'}</span><span>${msg}</span>`;
+        container.appendChild(toast);
+        setTimeout(() => toast.remove(), 4000);
+    }
+
+    function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+    
+    // ================================================================
+    // 3. EXAM ENGINE CORE
+    // ================================================================
+    
+    function startExam(ujianData) {
+        // Merge config jika ada parameter baru
+        if(ujianData) examState.ujian = { ...examState.ujian, ...ujianData };
+
+        // Load Soal
+        let rawSoal = DB.bankSoal.filter(s => s.mapel === examState.ujian.mapel && s.aktif);
+        if(examState.ujian.opsiAntiCurang.acakSoal) rawSoal.sort(() => Math.random() - 0.5);
+        examState.soalList = rawSoal;
+        
+        examState.currentQ = 0;
+        examState.answers = {};
+        examState.flagged = new Set();
+        examState.timeLeft = examState.ujian.durasi * 60;
+        examState.violations = 0;
+
+        // Update UI
+        document.getElementById('exam-title').textContent = examState.ujian.nama;
+        document.getElementById('exam-info').textContent = `${session.userData.nama} • ${session.userData.kelas}`;
+        
+        buildQuestionNav();
+        renderQuestion(0);
+        startExamTimer();
+        
+        // Setup Keamanan
+        setupAntiCheat(examState.ujian.opsiAntiCurang);
+        if(examState.ujian.opsiAntiCurang.fullscreen) {
+            enterFullscreen().then(() => {
+                // Sukses fullscreen
+            }).catch(() => {
+                document.getElementById('fullscreen-prompt').classList.remove('hidden');
+            });
+        }
+    }
+
+    function buildQuestionNav() {
+        const nav = document.getElementById('question-nums');
+        nav.innerHTML = '';
+        examState.soalList.forEach((_, i) => {
+            const el = document.createElement('div');
+            el.className = `q-num ${i === 0 ? 'current' : ''}`;
+            el.textContent = i + 1;
+            el.onclick = () => gotoQuestion(i);
+            nav.appendChild(el);
+        });
+        updateProgress();
+    }
+
+    function renderQuestion(idx) {
+        const soal = examState.soalList[idx];
+        if (!soal) return;
+        const totalSoal = examState.soalList.length;
+        const letters = ['A','B','C','D','E'];
+        let optionsHtml = '';
+
+        // Render berdasarkan jenis soal
+        if (soal.jenis === 'pg') {
+            let opts = soal.opsi.map((o, i) => ({ text: o, origIdx: i }));
+            if (examState.ujian.opsiAntiCurang.acakOpsi) opts.sort(() => Math.random() - 0.5);
+            optionsHtml = `<ul class="options-list">${opts.map((o, i) => {
+                const letter = letters[i];
+                const isSelected = examState.answers[idx]?.origIdx === o.origIdx;
+                return `<li class="option-item ${isSelected ? 'selected' : ''}" onclick="selectAnswer(${idx}, ${o.origIdx}, this)">
+                    <div class="option-letter">${letter}</div>
+                    <div class="option-text" style="flex:1;">${o.text}</div>
+                </li>`;
+            }).join('')}</ul>`;
+        } else if (soal.jenis === 'bs') {
+            const savedBS = examState.answers[idx]?.jawaban || {};
+            optionsHtml = `<div class="alert alert-info mb-3" style="font-size:12px;"><span>ℹ️</span><span>Tentukan Benar/Salah.</span></div>
+            <div style="display:flex;flex-direction:column;gap:8px;">${(soal.pernyataan||[]).map((p, pi) => {
+                const jwb = savedBS[pi];
+                return `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 16px;">
+                    <div style="font-size:14px;margin-bottom:10px;">${pi+1}. ${p}</div>
+                    <div style="display:flex;gap:10px;">
+                        <button onclick="pilihBS(${idx},${pi},'benar',this)" style="flex:1;padding:8px;border-radius:6px;border:2px solid ${jwb==='benar'?'var(--accent2)':'var(--border)'};background:${jwb==='benar'?'rgba(110,231,183,0.15)':'transparent'};color:${jwb==='benar'?'var(--accent2)':'var(--text2)'};font-family:inherit;font-weight:700;cursor:pointer;">✅ Benar</button>
+                        <button onclick="pilihBS(${idx},${pi},'salah',this)" style="flex:1;padding:8px;border-radius:6px;border:2px solid ${jwb==='salah'?'var(--danger)':'var(--border)'};background:${jwb==='salah'?'rgba(239,68,68,0.15)':'transparent'};color:${jwb==='salah'?'var(--danger)':'var(--text2)'};font-family:inherit;font-weight:700;cursor:pointer;">❌ Salah</button>
+                    </div></div>`;
+            }).join('')}</div>`;
+        } else {
+            optionsHtml = `<textarea class="essay-area" placeholder="Tuliskan jawaban Anda..." onchange="saveEssay(${idx}, this.value)">${examState.answers[idx]?.text||''}</textarea>`;
+        }
+
+        const jenisBadge = { pg:'PG', pgk:'PG Kompleks', bs:'Benar/Salah', essay:'Essay' }[soal.jenis] || soal.jenis;
+        
+        document.getElementById('exam-main').innerHTML = `
+        <div class="question-card">
+            <div class="question-header">
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <span class="question-num-badge">Soal ${idx+1} dari ${totalSoal}</span>
+                    <span class="badge badge-blue">${jenisBadge}</span>
+                </div>
+            </div>
+            <div class="question-text">${soal.pertanyaan}</div>
+            ${optionsHtml}
+            <div class="exam-actions">
+                <button class="btn btn-ghost" onclick="gotoQuestion(${idx-1})" ${idx===0?'disabled':''}>← Sebelumnya</button>
+                <div class="flex gap-2">
+                    <button class="btn btn-warn btn-sm" onclick="toggleFlag()">🚩</button>
+                    ${idx === totalSoal-1 ? `<button class="btn btn-success" onclick="confirmSubmit()">✅ Kumpulkan</button>` : `<button class="btn btn-primary" onclick="gotoQuestion(${idx+1})">Selanjutnya →</button>`}
+                </div>
+            </div>
+        </div>`;
+        
+        updateNav(idx);
+    }
+
+    // ================================================================
+    // 4. INTERAKSI SISWA
+    // ================================================================
+    function selectAnswer(qIdx, origIdx, el) {
+        examState.answers[qIdx] = { origIdx, type: 'pg' };
+        document.querySelectorAll('.option-item').forEach(o => o.classList.remove('selected'));
+        el.classList.add('selected');
+        updateNav(qIdx); updateProgress();
+    }
+
+    function pilihBS(qIdx, pernyataanIdx, nilai, btn) {
+        if (!examState.answers[qIdx]) examState.answers[qIdx] = { jawaban: {}, type: 'bs' };
+        examState.answers[qIdx].jawaban[pernyataanIdx] = nilai;
+        renderQuestion(qIdx); updateNav(qIdx); updateProgress();
+    }
+
+    function saveEssay(idx, text) {
+        examState.answers[idx] = { text, type: 'essay' };
+        updateNav(idx); updateProgress();
+    }
+
+    function gotoQuestion(idx) {
+        if (idx >= 0 && idx < examState.soalList.length) {
+            examState.currentQ = idx;
+            renderQuestion(idx);
+        }
+    }
+
+    function updateNav(currentIdx) {
+        document.querySelectorAll('.q-num').forEach((el, i) => {
+            el.className = 'q-num';
+            if (i === currentIdx) el.classList.add('current');
+            else if (examState.flagged.has(i)) el.classList.add('flagged');
+            else if (examState.answers[i]) el.classList.add('answered');
+        });
+    }
+
+    function toggleFlag() {
+        const idx = examState.currentQ;
+        examState.flagged.has(idx) ? examState.flagged.delete(idx) : examState.flagged.add(idx);
+        updateNav(idx); renderQuestion(idx);
+    }
+
+    function updateProgress() {
+        const answered = Object.keys(examState.answers).length;
+        document.getElementById('exam-progress-text').textContent = `${answered} / ${examState.soalList.length}`;
+    }
+
+    // ================================================================
+    // 5. TIMER & SUBMIT
+    // ================================================================
+    function startExamTimer() {
+        stopExamTimer();
+        examState.timer = setInterval(() => {
+            examState.timeLeft--;
+            updateTimerDisplay();
+            if (examState.timeLeft <= 0) stopExamTimer(); // Auto submit dipanggil di updateTimerDisplay jika 0
+        }, 1000);
+    }
+
+    function stopExamTimer() {
+        if (examState.timer) { clearInterval(examState.timer); examState.timer = null; }
+    }
+
+    function updateTimerDisplay() {
+        const t = examState.timeLeft;
+        const m = String(Math.floor(t/60)).padStart(2,'0');
+        const s = String(t%60).padStart(2,'0');
+        const el = document.getElementById('exam-timer');
+        el.textContent = `${m}:${s}`;
+        el.className = `exam-timer ${t < 300 ? 'warning' : ''}`;
+        if (t <= 0) autoSubmitExam();
+    }
+
+    function confirmSubmit() {
+        const answered = Object.keys(examState.answers).length;
+        const total = examState.soalList.length;
+        if (answered < total && !confirm(`Masih ada ${total - answered} soal belum dijawab. Yakin kumpulkan?`)) return;
+        submitExam();
+    }
+
+    function autoSubmitExam() {
+        showToast('Waktu habis! Ujian dikumpulkan otomatis.', 'warn');
+        submitExam();
+    }
+
+    function submitExam() {
+        stopExamTimer();
+        exitFullscreen();
+        // Hapus event listener anti-cheat
+        document.removeEventListener('visibilitychange', handleVisibility);
+        window.removeEventListener('blur', handleBlur);
+
+        // Hitung Nilai (Sederhana untuk PG & BS)
+        let benar = 0;
+        examState.soalList.forEach((soal, i) => {
+            const ans = examState.answers[i];
+            if (soal.jenis === 'pg' && ans) {
+                if (ans.origIdx === soal.kunci) benar++;
+            } else if (soal.jenis === 'bs' && ans) {
+                // Logika cek BS (sederhana: semua benar)
+                const allCorrect = (soal.kunciBS||[]).every((k, idx) => ans.jawaban[idx] === k);
+                if (allCorrect) benar++;
+            }
+        });
+
+        const nilai = Math.round((benar / examState.soalList.length) * 100);
+        
+        // Simpan Hasil
+        DB.hasil.push({
+            id: 'H' + Date.now(),
+            ujianId: examState.ujian.id,
+            siswaId: session.user,
+            nama: session.userData.nama,
+            nilai, benar, salah: examState.soalList.length - benar - 0, kosong: 0,
+            durasi: '00:00', // Disimpan dummy
+            pelanggaran: examState.violations,
+            waktu: new Date().toLocaleString('id-ID')
+        });
+
+        // Tampilkan Modal Hasil
+        const modalBody = document.getElementById('modal-hasil-body');
+        modalBody.innerHTML = `
+            <div style="text-align:center;margin-bottom:24px;">
+                <div class="result-circle" style="background:${nilai>=75?'rgba(110,231,183,0.15)':'rgba(239,68,68,0.15)'};border:3px solid ${nilai>=75?'var(--accent2)':'var(--danger)'};">
+                    <div class="result-score" style="color:${nilai>=75?'var(--accent2)':'var(--danger)'};">${nilai}</div>
+                </div>
+                <div style="font-size:20px;font-weight:800;">${nilai>=75?'🎉 Lulus!':'😟 Belum Lulus'}</div>
+            </div>
+            <div class="grid-3 mb-4">
+                <div class="stat-card green"><div class="stat-icon">✅</div><div class="stat-value">${benar}</div><div class="stat-label">Benar</div></div>
+                <div class="stat-card red"><div class="stat-icon">❌</div><div class="stat-value">${examState.soalList.length - benar}</div><div class="stat-label">Salah</div></div>
+                <div class="stat-card yellow"><div class="stat-icon">⚠️</div><div class="stat-value">${examState.violations}</div><div class="stat-label">Pelanggaran</div></div>
+            </div>
+        `;
+        document.getElementById('modal-hasil').classList.remove('hidden');
+    }
+
+    // ================================================================
+    // 6. ANTI-CHEAT & UTILS
+    // ================================================================
+    function enterFullscreen() {
+        return document.documentElement.requestFullscreen();
+    }
+
+    function exitFullscreen() {
+        if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+        document.getElementById('fullscreen-prompt').classList.add('hidden');
+    }
+
+    function setupAntiCheat(opts) {
+        if (opts.tabDetect) {
+            document.addEventListener('visibilitychange', handleVisibility);
+            window.addEventListener('blur', handleBlur);
+        }
+        if (opts.noCopy) {
+            document.addEventListener('copy', e => e.preventDefault());
+            document.addEventListener('keydown', e => {
+                if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && ['I','J','C'].includes(e.key))) e.preventDefault();
+            });
+        }
+        if (opts.noRightClick) document.addEventListener('contextmenu', e => e.preventDefault());
+    }
+
+    function handleVisibility() {
+        if (document.hidden) triggerViolation('Pindah tab terdeteksi!');
+    }
+
+    function handleBlur() {
+        triggerViolation('Browser kehilangan fokus!');
+    }
+
+    function triggerViolation(msg) {
+        examState.violations++;
+        document.getElementById('violation-count').textContent = examState.violations;
+        document.getElementById('cheat-warning-msg').textContent = msg;
+        document.getElementById('cheat-warning').classList.remove('hidden');
+        
+        if (examState.violations >= examState.maxViolations) {
+            document.getElementById('cheat-warning').innerHTML = `<h2>UJIAN DIHENTIKAN</h2><p>Pelanggaran melebihi batas.</p><button class="btn btn-lg" onclick="submitExam()">OK</button>`;
+        }
+    }
+    
+    // Listener tombol kembali dari pelanggaran
+    document.getElementById('btn-return-exam')?.addEventListener('click', () => {
+        document.getElementById('cheat-warning').classList.add('hidden');
+        if(examState.ujian.opsiAntiCurang?.fullscreen) enterFullscreen();
+    });
+
+    function printHasil() { window.print(); }
+
+    // ================================================================
+    // 7. INISIALISASI OTOMATIS
+    // ================================================================
+    // Simulasi start exam saat load (bisa diganti dengan validasi token asli)
+    window.onload = () => {
+        startExam(); 
+    };
+    </script>
+</body>
+</html>
